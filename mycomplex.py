@@ -1,21 +1,15 @@
-"""Специальная библиотека для работы с комплексными числами.
-
-Содержит только операции, используемые в furie.py (ДПФ, полубыстрое ПФ, БПФ):
-создание числа, сложение, вычитание, умножение,
-деление на скаляр и модуль.
-"""
-
 import math
 
 
 class Complex:
-    """Комплексное число вида real + imag*j."""
-
-    __slots__ = ("real", "imag")
+    __slots__ = ("imag", "real")
 
     def __init__(self, real=0.0, imag=0.0):
         self.real = float(real)
         self.imag = float(imag)
+
+    def __repr__(self):
+        return f"{self.real:.6g}{self.imag:+.6g}j"
 
     def __add__(self, other):
         if isinstance(other, Complex):
@@ -46,7 +40,7 @@ class Complex:
 
     def __truediv__(self, other):
         if isinstance(other, Complex):
-            denom = other.real ** 2 + other.imag ** 2
+            denom = other.real**2 + other.imag**2
             return Complex(
                 (self.real * other.real + self.imag * other.imag) / denom,
                 (self.imag * other.real - self.real * other.imag) / denom,
@@ -56,5 +50,4 @@ class Complex:
         return NotImplemented
 
     def __abs__(self):
-        """Модуль комплексного числа."""
         return math.hypot(self.real, self.imag)
