@@ -25,7 +25,7 @@ def dft(x):
         s = Complex(0.0, 0.0)
         for n in range(N):
             angle = -2.0 * math.pi * k * n / N
-            w = Complex(math.cos(angle), math.sin(angle))
+            w = Complex.exp(angle)
             s += cmul(x[n], w)
         X.append(s / N)
     return X
@@ -38,7 +38,7 @@ def idft(X):
         s = Complex(0.0, 0.0)
         for k in range(N):
             angle = 2.0 * math.pi * k * n / N
-            w = Complex(math.cos(angle), math.sin(angle))
+            w = Complex.exp(angle)
             s += cmul(X[k], w)
         x.append(s)
     return x

@@ -1,7 +1,7 @@
 from furie import C, dft, idft
 from semi_fast_furie import (
-    fast_backward,
-    fast_forward,
+    fast_furie,
+    fast_furie_backward,
     half_fast_backward,
     half_fast_forward,
 )
@@ -76,11 +76,11 @@ def conv_fft(a, b):
     ap = _pad(a, N)
     bp = _pad(b, N)
 
-    A, _ = fast_forward(ap)
-    B, _ = fast_forward(bp)
+    A, _ = fast_furie(ap)
+    B, _ = fast_furie(bp)
     P = [A[k] * B[k] for k in range(N)]
 
-    c, _ = fast_backward(P)
+    c, _ = fast_furie_backward(P)
 
     return [v * N for v in c[:L]]
 

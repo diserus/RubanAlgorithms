@@ -8,6 +8,10 @@ class Complex:
         self.real = float(real)
         self.imag = float(imag)
 
+    @staticmethod
+    def exp(angle):
+        return Complex(math.cos(angle), math.sin(angle))
+
     def __repr__(self):
         return f"{self.real:.6g}{self.imag:+.6g}j"
 

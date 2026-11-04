@@ -18,11 +18,10 @@ def half_fast_forward(f, p1, p2):
             acc = Complex()
             for j1 in range(p1):
                 angle = 2.0 * math.pi * (j1 * k1) / p1
-                e = Complex(math.cos(-angle), math.sin(-angle))
-                e = e * f[j2 + p2 * j1]
+                e = Complex.exp(-angle) * f[j2 + p2 * j1]
                 mul_count += 1
                 acc = acc + e
-            A1[k1 * p2 + j2] = acc * (1.0 / p1)
+            A1[k1 * p2 + j2] = acc / p1
 
     A = [Complex() for _ in range(N)]
 
@@ -31,11 +30,10 @@ def half_fast_forward(f, p1, p2):
             acc = Complex()
             for j2 in range(p2):
                 angle = 2.0 * math.pi * (j2 / N) * (k1 + p1 * k2)
-                e = Complex(math.cos(-angle), math.sin(-angle))
-                e = e * A1[k1 * p2 + j2]
+                e = Complex.exp(-angle) * A1[k1 * p2 + j2]
                 mul_count += 1
                 acc = acc + e
-            A[k1 + p1 * k2] = acc * (1.0 / p2)
+            A[k1 + p1 * k2] = acc / p2
 
     return A, mul_count
 
@@ -53,8 +51,7 @@ def half_fast_backward(A, p1, p2):
             acc = Complex()
             for k2 in range(p2):
                 angle = 2.0 * math.pi * (j2 / N) * (k1 + p1 * k2)
-                e = Complex(math.cos(angle), math.sin(angle))
-                e = e * A[k1 + p1 * k2]
+                e = Complex.exp(angle) * A[k1 + p1 * k2]
                 mul_count += 1
                 acc = acc + e
             A1[k1 * p2 + j2] = acc
@@ -65,109 +62,87 @@ def half_fast_backward(A, p1, p2):
             acc = Complex()
             for k1 in range(p1):
                 angle = 2.0 * math.pi * (j1 * k1) / p1
-                e = Complex(math.cos(angle), math.sin(angle))
-                e = e * A1[k1 * p2 + j2]
+                e = Complex.exp(angle) * A1[k1 * p2 + j2]
                 mul_count += 1
                 acc = acc + e
             f[j2 + p2 * j1] = acc.real
 
     return f, mul_count
 
+def fast_furie(f):
+    n = len(f)
+    if n == 0:
+        return [], 0
+    if n == 1:
+        return list(f), 0
+    if n % 2 != 0:
+        return None
 
-def _bit_reverse(value, bits):
-    result = 0
-    for _ in range(bits):
-        result = (result << 1) | (value & 1)
-        value >>= 1
-    return result
-
-
-def _forward_steps(A_0, r):
-    N = len(A_0)
-    A_s = A_0
+    p1 = 2
+    p2 = n // 2
     mul_count = 0
 
-    for s in range(r):
-        A_next = [Complex() for _ in range(N)]
+    A1 = [[Complex() for _ in range(p2)] for _ in range(p1)]
+    for j2 in range(p2):
+        s = f[j2] + f[j2 + p2]
+        d = f[j2] - f[j2 + p2]
+        A1[0][j2] = s / p1
+        A1[1][j2] = d * Complex.exp(-2 * math.pi * j2 / n) / p1
+        mul_count += 1
 
-        for k in range(1 << s):
-            K_s = _bit_reverse(k, s)
-            angle = -2.0 * math.pi * K_s / (1 << (s + 1))
-            w = Complex(math.cos(angle), math.sin(angle))
+    B = [fast_furie(A1[k1]) for k1 in range(p1)]
+    mul_count += sum(count for _, count in B)
+    B = [spectrum for spectrum, _ in B]
 
-            for j in range(1 << (r - s - 1)):
-                i0 = ((2 * k) << (r - s - 1)) | j
-                i1 = i0 | (1 << (r - s - 1))
-                A_j0 = A_s[i0]
-                A_j1 = A_s[i1]
-                A_next[i0] = (A_j0 + w * A_j1) * 0.5
-                A_next[i1] = (A_j0 - w * A_j1) * 0.5
-                mul_count += 2
+    result = [Complex() for _ in range(n)]
+    for k1 in range(p1):
+        for k2 in range(p2):
+            result[k1 + p1 * k2] = B[k1][k2]
 
-        A_s = A_next
-
-    return A_s, mul_count
+    return result, mul_count
 
 
-def _backward_steps(A_r, r):
-    N = len(A_r)
-    A_s = A_r
+def _to_complex(value):
+    return value if isinstance(value, Complex) else Complex(value)
+
+
+def _fast_furie_backward(A):
+    n = len(A)
+    if n == 0:
+        return [], 0
+    if n == 1:
+        return [_to_complex(A[0])], 0
+    if n % 2 != 0:
+        return None
+
+    p1 = 2
+    p2 = n // 2
     mul_count = 0
 
-    for s in range(r - 1, -1, -1):
-        A_prev = [Complex() for _ in range(N)]
+    A1 = [[Complex() for _ in range(p2)] for _ in range(p1)]
+    for k1 in range(p1):
+        sub = [A[k1 + p1 * k2] for k2 in range(p2)]
+        B_k1, sub_mul = _fast_furie_backward(sub)
+        mul_count += sub_mul
+        angle = 2.0 * math.pi * k1 / n
+        for j2 in range(p2):
+            if k1 == 0:
+                A1[k1][j2] = B_k1[j2]
+            else:
+                A1[k1][j2] = B_k1[j2] * Complex.exp(angle * j2)
+                mul_count += 1
 
-        for k in range(1 << s):
-            K_s = _bit_reverse(k, s)
-            angle = 2.0 * math.pi * K_s / (1 << (s + 1))
-            w = Complex(math.cos(angle), math.sin(angle))
+    result = [Complex() for _ in range(n)]
+    for j2 in range(p2):
+        result[j2] = A1[0][j2] + A1[1][j2]
+        result[j2 + p2] = A1[0][j2] - A1[1][j2]
 
-            for j in range(1 << (r - s - 1)):
-                i0 = ((2 * k) << (r - s - 1)) | j
-                i1 = i0 | (1 << (r - s - 1))
-                A_k0 = A_s[i0]
-                A_k1 = A_s[i1]
-                A_prev[i0] = A_k0 + A_k1
-                A_prev[i1] = w * (A_k0 - A_k1)
-                mul_count += 2
-
-        A_s = A_prev
-
-    return A_s, mul_count
-
-
-def fast_forward(f):
-    N = len(f)
-    if N == 0 or N & (N - 1):
-        raise ValueError("БПФ: длина массива должна быть степенью двойки")
-
-    r = N.bit_length() - 1
-
-    A_0 = [Complex(v.real, v.imag) if isinstance(v, Complex) else Complex(v) for v in f]
-    A_r, mul_count = _forward_steps(A_0, r)
-
-    X = [Complex() for _ in range(N)]
-    for k in range(N):
-        X[k] = A_r[_bit_reverse(k, r)]
-
-    return X, mul_count
+    return result, mul_count
 
 
-def fast_backward(X):
-    N = len(X)
-    if N == 0 or N & (N - 1):
-        raise ValueError("БПФ: длина массива должна быть степенью двойки")
-
-    r = N.bit_length() - 1
-
-    A_r = [Complex() for _ in range(N)]
-    for position in range(N):
-        k = _bit_reverse(position, r)
-        A_r[position] = Complex(X[k].real, X[k].imag)
-
-    A_0, mul_count = _backward_steps(A_r, r)
-
-    return [z.real for z in A_0], mul_count
+def fast_furie_backward(A):
+    result, mul_count = _fast_furie_backward(A)
+    return [z.real for z in result], mul_count
 
 
 
@@ -197,8 +172,8 @@ if __name__ == "__main__":
     )
 
     r = N.bit_length() - 1
-    A_fft, fft_mul = fast_forward(f)
-    print(f"\nБПФ (формула 2.4), N = 2^{r} = {N}:")
+    A_fft, fft_mul = fast_furie(f)
+    print(f"\nБПФ (рекурсивная версия), N = 2^{r} = {N}:")
     for k, val in enumerate(A_fft):
         print(f" A[{k}] = {val.real:8.4f} + {val.imag:8.4f}j")
     print("\nТрудоёмкость БПФ:")
@@ -206,7 +181,7 @@ if __name__ == "__main__":
         f"  умножений: {fft_mul}, T = c * N*log2(N) = {C} * {N} * {r} = {C * fft_mul}"
     )
 
-    f_rec_fft, fft_bwd_mul = fast_backward(A_fft)
+    f_rec_fft, fft_bwd_mul = fast_furie_backward(A_fft)
     print("\nОбратное БПФ:")
     for n, val in enumerate(f_rec_fft):
         print(f" f[{n}] = {val:8.4f}")
